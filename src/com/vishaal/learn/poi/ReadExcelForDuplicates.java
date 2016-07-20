@@ -9,6 +9,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.collections.map.MultiValueMap;
 import org.apache.commons.io.FileUtils;
@@ -27,7 +29,12 @@ import com.google.common.collect.ArrayListMultimap;
 public class ReadExcelForDuplicates {
 	
   private MultiValueMap excelMap;
-  private String post2010Pattern = "<void property=\"status\"";
+  private static final String post2010Pattern = "<void property=\"status\"";
+  private static final String EXCEL_WORKSHEET_NAME = "SQL Results"; //Export Worksheet
+  //private static final String EXCEL_FILE = "/Users/vkant/git/Testing-Programs/src/resources/dups.xlsx";
+  private static final String EXCEL_FILE = "/Users/vkant/git/Testing-Programs/src/resources/duplicate destinations all cols.xlsx";
+  private static final String JAVA_VERSION_REGEX = "java" + "\\s" + "version" + "=" + "\"" + "\\d\\.\\d\\.\\d\\w\\d{2}" + "\"";
+  private static final Pattern pattern = Pattern.compile(JAVA_VERSION_REGEX);
   
   public interface DUPSTYPE {
     public String CLOB_STRING_EQUAL = "CLOB_STRING_EQUAL";
@@ -40,7 +47,32 @@ public class ReadExcelForDuplicates {
     findDupsToBeRemoved();
   }
   
-	private void findDupsToBeRemoved() {
+  private void findDupsToBeRemoved() {
+    System.out.println("Excel : " + excelMap);
+    
+    Set<String> keys = excelMap.keySet();
+    
+    MultiValueMap destinationsToBeRemoved = MultiValueMap.decorate(new LinkedHashMap(), TreeSet.class);
+    
+    for (String key : keys) {
+      Set<DataObj> dupsSet =  (Set) excelMap.getCollection(key);
+      List myLIst = new ArrayList(dupsSet);
+      
+      for (DataObj dataObj : dupsSet) {
+        
+        String clob = dataObj.getClob();
+        
+        // are clobs equal
+        
+        
+      }
+    }
+  }
+  
+	private void findDupsToBeRemoved1() {
+	  
+	  System.out.println("Excel : " + excelMap);
+	  
 	  Set<String> keys = excelMap.keySet();
 	  
 	  MultiValueMap destinationsToBeRemoved = MultiValueMap.decorate(new LinkedHashMap(), TreeSet.class);
@@ -72,8 +104,12 @@ public class ReadExcelForDuplicates {
 	    
 	    if ( (row2Clob.contains(post2010Pattern) && row1Clob.contains(post2010Pattern)) || 
 	        (!row2Clob.contains(post2010Pattern) && !row1Clob.contains(post2010Pattern)) ) {
-	      String row1JavaVersion = getJavVersion(row1Clob);
-	      String row2JavaVersion = getJavVersion(row2Clob);
+	      String row1JavaVersion = getJavaVersion(row1Clob);
+	      String row2JavaVersion = getJavaVersion(row2Clob);
+	      
+	      if (row1JavaVersion == null || row2JavaVersion == null) {
+	        throw new RuntimeException("Failed retrieiving the java version !!");
+	      }
 	      
 	      int retVal = row1JavaVersion.compareTo(row2JavaVersion); 
 	      
@@ -132,22 +168,31 @@ public class ReadExcelForDuplicates {
     
   }
 
-  private String getJavVersion(String clobString) {
-	  int index = clobString.indexOf("java");
-	  return clobString.substring(index +14, index + 22);
+	private String getJavaVersion(String clobString) {
+	   Matcher matcher = pattern.matcher(clobString);
+
+	   if(matcher.find()){
+	     String result = matcher.group(0);
+	     return result;
+	   } 
+	   
+	   return null;
 	}
 	
+  /*private String getJavVersion(String clobString) {
+	  int index = clobString.indexOf("java");
+	  return clobString.substring(index +14, index + 22);
+	}*/
+	
   public static void main(String[] args) throws Exception {
-		String excelFilePath = "/Users/vkant/git/Testing-Programs/src/resources/dups.xlsx";
-		FileInputStream inputStream = new FileInputStream(new File(excelFilePath));
+		FileInputStream inputStream = new FileInputStream(new File(EXCEL_FILE));
 
 		Workbook workbook = new XSSFWorkbook(inputStream);
-		Sheet firstSheet = workbook.getSheet("SQL Results");
+		Sheet firstSheet = workbook.getSheet(EXCEL_WORKSHEET_NAME);
 
 		Iterator<Row> iterator = firstSheet.iterator();
-		ArrayListMultimap myMap = ArrayListMultimap.create();
 		
-		MultiValueMap multValueMap = MultiValueMap.decorate(new LinkedHashMap(), ArrayList.class);
+		MultiValueMap multValueMap = MultiValueMap.decorate(new LinkedHashMap(), TreeSet.class);
 		
 		List<DataObj> rows = new ArrayList<>();
 		while (iterator.hasNext()) {
@@ -160,7 +205,6 @@ public class ReadExcelForDuplicates {
 				int IDIntVal = Double.valueOf(ID.toString()).intValue();
 				String destName = name.getStringCellValue();
 				DataObj dataObj = new DataObj(String.valueOf(IDIntVal), destName, clob.getStringCellValue());
-				//System.out.println(dataObj);
 				multValueMap.put(destName, dataObj);
 			} catch (Exception e) {
 				System.err.println("Error: " + ID.toString());
@@ -245,5 +289,3 @@ class DataObj implements Comparable {
     return this.Id.compareTo(thisObject.getId());
   }
 }
-
-
