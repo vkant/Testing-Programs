@@ -14,6 +14,8 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.collections.map.MultiValueMap;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -30,9 +32,9 @@ public class ReadExcelForDuplicates {
 	
   private MultiValueMap excelMap;
   private static final String post2010Pattern = "<void property=\"status\"";
-  private static final String EXCEL_WORKSHEET_NAME = "SQL Results"; //Export Worksheet
+  private static final String EXCEL_WORKSHEET_NAME = "SQL Results"; 
   //private static final String EXCEL_FILE = "/Users/vkant/git/Testing-Programs/src/resources/dups.xlsx";
-  private static final String EXCEL_FILE = "/Users/vkant/git/Testing-Programs/src/resources/duplicate destinations all cols.xlsx";
+  private static final String EXCEL_FILE = "/Users/vkant/git/Testing-Programs/src/resources/uat_dup_destinations.xlsx";
   private static final String JAVA_VERSION_REGEX = "java" + "\\s" + "version" + "=" + "\"" + "\\d\\.\\d\\.\\d\\w\\d{2}" + "\"";
   private static final Pattern pattern = Pattern.compile(JAVA_VERSION_REGEX);
   
@@ -48,26 +50,54 @@ public class ReadExcelForDuplicates {
   }
   
   private void findDupsToBeRemoved() {
-    System.out.println("Excel : " + excelMap);
-    
     Set<String> keys = excelMap.keySet();
-    
-    MultiValueMap destinationsToBeRemoved = MultiValueMap.decorate(new LinkedHashMap(), TreeSet.class);
-    
-    for (String key : keys) {
-      Set<DataObj> dupsSet =  (Set) excelMap.getCollection(key);
-      List myLIst = new ArrayList(dupsSet);
-      
-      for (DataObj dataObj : dupsSet) {
-        
-        String clob = dataObj.getClob();
-        
-        // are clobs equal
-        
-        
+
+    MultiValueMap destinationsToBeRemoved = MultiValueMap.decorate(
+            new LinkedHashMap(), TreeSet.class);
+    List<DataObj> toBeHandeledManually = new ArrayList<DataObj>();
+    List<DataObj> javaListOne = new ArrayList<DataObj>();
+    List<DataObj> javaListTwo = new ArrayList<DataObj>();
+
+    for(String key : keys) {
+      List<DataObj> dupList = (List) excelMap.getCollection(key);
+      String javaVersionOfFirst = getJavaVersion(dupList.get(0).getClob());
+      javaListOne.add(dupList.get(0));
+      for(int i = 1; i<dupList.size(); i++) {
+        if(javaVersionOfFirst.compareTo(getJavaVersion(dupList.get(i).getClob())) == 0) {
+          javaListOne.add(dupList.get(i));
+        }
+        else {
+          javaListTwo.add(dupList.get(i));
+        }
+      }
+      boolean isListOneProper = false;
+      if (javaVersionOfFirst.substring(14, 17).equals("1.7")) {
+        isListOneProper = true;
+        for (DataObj obj : javaListTwo) {
+          destinationsToBeRemoved.put(DUPSTYPE.CLOB_JAVA_VERSION, obj);
+        }
+      } else {
+        for (DataObj obj : javaListOne) {
+          destinationsToBeRemoved.put(DUPSTYPE.CLOB_JAVA_VERSION, obj);
+        }
+      }
+
+      if(isListOneProper) {
+        for (DataObj obj : javaListOne) {
+          toBeHandeledManually.add(obj);
+        }
+      }
+      else {
+        for (DataObj obj : javaListTwo) {
+          toBeHandeledManually.add(obj);
+        }
       }
     }
-  }
+    
+    System.out.println("toBeHandeledManually : " + toBeHandeledManually);
+    System.out.println("destinationsToBeRemoved : " + destinationsToBeRemoved);
+    
+  } 
   
 	private void findDupsToBeRemoved1() {
 	  
@@ -192,7 +222,7 @@ public class ReadExcelForDuplicates {
 
 		Iterator<Row> iterator = firstSheet.iterator();
 		
-		MultiValueMap multValueMap = MultiValueMap.decorate(new LinkedHashMap(), TreeSet.class);
+		MultiValueMap multValueMap = MultiValueMap.decorate(new LinkedHashMap(), ArrayList.class);
 		
 		List<DataObj> rows = new ArrayList<>();
 		while (iterator.hasNext()) {
@@ -279,7 +309,7 @@ class DataObj implements Comparable {
 	@Override
 	public String toString() {
 		// TODO Auto-generated method stub
-		return Id;
+		return Id + " - " + name;
 	}
 
   @Override
