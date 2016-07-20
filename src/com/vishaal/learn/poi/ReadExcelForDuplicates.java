@@ -3,6 +3,8 @@ package com.vishaal.learn.poi;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -33,8 +35,8 @@ public class ReadExcelForDuplicates {
   private static final String post2010Pattern = "<void property=\"status\"";
   private static final String EXCEL_WORKSHEET_NAME = "SQL Results"; 
   //private static final String EXCEL_FILE = "/Users/vkant/git/Testing-Programs/src/resources/dups.xlsx";
-  private static final String UAT_EXCEL = "/Users/vkant/git/Testing-Programs/src/resources/uat_dup_destinations.xlsx";
-  private static final String PROD_EXCEL = "/Users/vkant/git/Testing-Programs/src/resources/dups.xlsx";
+  private static final String UAT_EXCEL = getUATExcel();
+  private static final String PROD_EXCEL = getProdExcel();
   
   
   public static final String JAVA_VERSION_REGEX = "java" + "\\s" + "version" + "=" + "\"" + "\\d\\.\\d\\.\\d\\w\\d{2}" + "\"";
@@ -53,14 +55,17 @@ public class ReadExcelForDuplicates {
 
   private void handleDuplicates() {
     if (isProd()) {
-      findDupsToBeRemoved1();
+      findDupsToBeRemovedProd();
     }
     else {
-      findDupsToBeRemoved();
+      findDupsToBeRemovedUAT();
     }
   }
   
-  private void findDupsToBeRemoved() {
+  private void findDupsToBeRemovedUAT() {
+    
+    System.out.println("Excel : " + excelMap);
+    
     Set<String> keys = excelMap.keySet();
 
     MultiValueMap destinationsToBeRemoved = MultiValueMap.decorate(
@@ -69,36 +74,37 @@ public class ReadExcelForDuplicates {
     List<DataObj> javaListOne = new ArrayList<DataObj>();
     List<DataObj> javaListTwo = new ArrayList<DataObj>();
 
-    for(String key : keys) {
+    for (String key : keys) {
       javaListOne.clear();
       javaListTwo.clear();
       Set<DataObj> dupSet = (Set) excelMap.getCollection(key);
       List<DataObj> dupList = new ArrayList<DataObj>(dupSet);
       String javaVersionOfFirst = dupList.get(0).getJavaVersion();
       javaListOne.add(dupList.get(0));
-      for(int i = 1; i < dupList.size(); i++) {
-        if(javaVersionOfFirst.compareTo(dupList.get(i).getJavaVersion()) == 0) {
+      for (int i = 1; i < dupList.size(); i++) {
+        if (javaVersionOfFirst.compareTo(dupList.get(i).getJavaVersion()) == 0) {
           javaListOne.add(dupList.get(i));
-        }
-        else {
+        } else {
           javaListTwo.add(dupList.get(i));
         }
       }
-      
-      if(javaListTwo.size() == 0) {
-        for (DataObj obj : javaListOne) {
-          toBeHandeledManually.add(obj);
+
+      if (javaListTwo.size() == 0) {
+        for (int i = 1; i < javaListOne.size(); i++) {
+          destinationsToBeRemoved.put(DUPSTYPE.CLOB_STRING_EQUAL,
+                  javaListOne.get(i));
         }
         continue;
       }
-      
-      if(javaListOne.size() == 0) {
-        for (DataObj obj : javaListTwo) {
-          toBeHandeledManually.add(obj);
+
+      if (javaListOne.size() == 0) {
+        for (int i = 1; i < javaListOne.size(); i++) {
+          destinationsToBeRemoved.put(DUPSTYPE.CLOB_STRING_EQUAL,
+                  javaListTwo.get(i));
         }
         continue;
       }
-      
+
       boolean isListOneProper = false;
       if (javaVersionOfFirst.substring(14, 17).equals("1.7")) {
         isListOneProper = true;
@@ -111,24 +117,34 @@ public class ReadExcelForDuplicates {
         }
       }
 
-      if(isListOneProper && javaListOne.size() > 1) {
-        for (DataObj obj : javaListOne) {
-          toBeHandeledManually.add(obj);
+      if (isListOneProper && javaListOne.size() > 1) {
+        for (int i = 1; i < javaListOne.size(); i++) {
+          destinationsToBeRemoved.put(DUPSTYPE.CLOB_STRING_EQUAL,
+                  javaListOne.get(i));
         }
-      }
-      else if(!isListOneProper && javaListTwo.size() >1){
-        for (DataObj obj : javaListTwo) {
-          toBeHandeledManually.add(obj);
+      } else if (!isListOneProper && javaListTwo.size() > 1) {
+        for (int i = 1; i < javaListOne.size(); i++) {
+          destinationsToBeRemoved.put(DUPSTYPE.CLOB_STRING_EQUAL,
+                  javaListTwo.get(i));
         }
       }
     }
-    
-   System.out.println("Destination to be Removed :");
+   
+    System.out.println("Excel Size [without duplicates] : " + excelMap.size()); 
+   System.out.println("Old Java Version Destinations to be Removed :");
    System.out.println("**********************************************************************************************************************");
-   System.out.println(destinationsToBeRemoved);
+   System.out.println(destinationsToBeRemoved.getCollection(DUPSTYPE.CLOB_JAVA_VERSION));
    System.out.println("Details of the destinations to be Removed -> ");
    printMultiValueMap(destinationsToBeRemoved,DUPSTYPE.CLOB_JAVA_VERSION);
    System.out.println("**********************************************************************************************************************");
+   
+   System.out.println("CLOB_STRING_EQUAL Destinations to be Removed :");
+   System.out.println("**********************************************************************************************************************");
+   System.out.println(destinationsToBeRemoved.getCollection(DUPSTYPE.CLOB_STRING_EQUAL));
+   System.out.println("Details of the destinations to be Removed -> ");
+   printMultiValueMap(destinationsToBeRemoved,DUPSTYPE.CLOB_STRING_EQUAL);
+   System.out.println("**********************************************************************************************************************");
+   
    System.out.println("Destinations to be handled manually are : ");
    System.out.println(toBeHandeledManually); 
    Set<String> testDups = new HashSet<String>();
@@ -154,7 +170,7 @@ public class ReadExcelForDuplicates {
   }
 
   
-  private void findDupsToBeRemoved1() {
+  private void findDupsToBeRemovedProd() {
     
     System.out.println("Excel : " + excelMap);
     
@@ -290,7 +306,19 @@ public class ReadExcelForDuplicates {
     return retVal;
   }
   
-  public static void main(String[] args) throws Exception {
+  private static String getUATExcel() {
+    Path currentRelativePath = Paths.get("");
+    String baseDir = currentRelativePath.toAbsolutePath().toString();
+    return baseDir+"/src/resources/uat_dup_destinations.xlsx";
+  }
+  
+  private static String getProdExcel() {
+    Path currentRelativePath = Paths.get("");
+    String baseDir = currentRelativePath.toAbsolutePath().toString();
+    return baseDir+"/src/resources/dups.xlsx";
+  }
+  
+  public static void main(String[] args) throws Exception { 
     FileInputStream inputStream = new FileInputStream(new File(getExcelFile()));
 
     Workbook workbook = new XSSFWorkbook(inputStream);
