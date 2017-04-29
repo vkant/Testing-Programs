@@ -6,6 +6,9 @@ public class TestNull {
 		return (i < 10 ? null : i);
 	}
 	
+	
+	
+	
 	public static void main(String[] args) {
 		int x = TestNull.foo(5);
 		System.out.println(x);
